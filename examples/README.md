@@ -30,6 +30,9 @@ forms, validation, updated results, and restart. No AI key is needed.
 
 [with-limrun-storekit](with-limrun-storekit) demonstrates local iOS product catalogs, purchases, and entitlements.
 
+[with-limrun-webgpu](with-limrun-webgpu) checks compute shader output and
+rendered pixels in an iOS WKWebView.
+
 ## For contributors
 
 Run the suite locally after changes. Update the README's "Last checked"

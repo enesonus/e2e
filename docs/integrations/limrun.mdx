@@ -302,6 +302,40 @@ server's App Store integration. Verify your app's StoreKit wrapper and
 simulator runtime separately, especially legacy StoreKit 1 receipt and
 restore flows.
 
+## Verify WebGPU compute and rendering
+
+The [WebGPU example](https://github.com/tester-army/e2e/tree/main/examples/with-limrun-webgpu)
+loads a bundled page in WKWebView on iOS. It runs a compute shader over four
+integers, renders a triangle, and reads back both the output buffer and
+texture pixels. Changing the input changes the computed values and the
+triangle's color.
+
+```ts title="tests/webgpu.e2e.ts"
+import { expect } from 'e2e';
+import { test } from '@e2e-dev/mobile';
+
+test('executes WebGPU work with a different input', async ({ app, screen }) => {
+  await app.open();
+  await expect(screen.getByText('WebGPU ready', { exact: true })).toBeVisible({ timeout: 25_000 });
+  await screen.getByRole('button', { name: 'Triple values', exact: true }).click();
+  await expect(screen.getByText('Compute: 3, 6, 9, 12', { exact: true })).toBeVisible();
+  await expect(screen.getByText('Center pixel: 0, 0, 255, 255', { exact: true })).toBeVisible();
+  await app.screenshot('blue-triangle');
+});
+```
+
+WebGPU is a runtime capability; it needs no provider option or mocking API.
+Check `navigator.gpu`, request an adapter and device, then verify actual
+shader results in your app. The example fails visibly when support is
+missing, shader execution fails, readback differs, or the device is lost.
+It also checks rejection of an invalid shader and recovery with valid work.
+
+All four example scenarios passed on Limrun iPhone 16 Pro with iOS 26.4.
+The example targets iOS 26 or newer. It uses no CPU fallback or private
+WKWebView flags. Its small compute and rendering workload does not prove
+compatibility with every shader or measure GPU performance. Android WebView
+is outside this example's verified scope.
+
 ## Next
 
 <CardGroup cols={2}>

@@ -1,0 +1,18 @@
+name: WebGPUDemo
+options:
+  bundleIdPrefix: dev.e2e
+  deploymentTarget:
+    iOS: '26.0'
+settings:
+  SWIFT_VERSION: '5.0'
+targets:
+  WebGPUDemo:
+    type: application
+    platform: iOS
+    sources: [WebGPUDemo]
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: dev.e2e.webgpu
+      GENERATE_INFOPLIST_FILE: YES
+      INFOPLIST_KEY_UILaunchScreen_Generation: YES
+      INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+      TARGETED_DEVICE_FAMILY: '1,2'

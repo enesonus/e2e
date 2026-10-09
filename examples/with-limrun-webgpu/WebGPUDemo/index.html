@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebGPU readback</title>
+  <style>
+    :root { color-scheme: dark; font: 17px system-ui; background: #101827; color: #edf4ff; }
+    body { margin: 0 auto; padding: 24px; max-width: 520px; }
+    h1 { font-size: 28px; margin: 8px 0; }
+    p { margin: 12px 0; }
+    canvas { display: block; width: min(100%, 256px); aspect-ratio: 1; margin: 20px auto; border: 1px solid #52647d; border-radius: 12px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; }
+    button { font: inherit; padding: 12px 16px; border: 1px solid #779bc7; border-radius: 10px; color: #fff; background: #203957; }
+    button:disabled { opacity: .5; }
+    #status { color: #96edc1; }
+    #diagnostic { color: #ffc976; }
+    .detail { color: #adc0d8; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>WebGPU readback</h1>
+  <p id="status" role="status">Checking WebGPU</p>
+  <p class="detail">WKWebView compute and texture readback</p>
+  <p id="diagnostic">Shader diagnostics: none</p>
+  <canvas id="scene" width="256" height="256" aria-label="GPU-rendered triangle"></canvas>
+  <p id="compute">Compute: waiting</p>
+  <p id="pixel">Center pixel: waiting</p>
+  <p id="background">Corner pixel: waiting</p>
+  <div class="controls">
+    <button id="double" disabled>Double values</button>
+    <button id="triple" disabled>Triple values</button>
+    <button id="invalid" disabled>Test invalid shader</button>
+  </div>
+  <p class="detail">Input: 1, 2, 3, 4. The compute shader scales the values.
+    A fragment shader paints the triangle green or blue. Results below the
+    canvas come from GPU buffer and texture readback.</p>
+<script>
+const text = (id, value) => { document.getElementById(id).textContent = value; };
+const buttons = [...document.querySelectorAll('button')];
+let device, context, computePipeline, renderPipeline, format;
+let stopped = false;
+let busy = false;
+
+function fail(error) {
+  stopped = true;
+  buttons.forEach(button => { button.disabled = true; });
+  text('status', `WebGPU failed: ${error.message || error}`);
+}
+
+async function bounded(action) {
+  if (busy || stopped) return;
+  busy = true;
+  buttons.forEach(button => { button.disabled = true; });
+  const timeout = setTimeout(() => {
+    fail(new Error('GPU operation exceeded 20 seconds'));
+    device?.destroy();
+  }, 20000);
+  try { await action(); }
+  catch (error) { fail(error); }
+  finally {
+    clearTimeout(timeout);
+    busy = false;
+    buttons.forEach(button => { button.disabled = stopped; });
+  }
+}
+
+async function run(factor) {
+  text('status', 'WebGPU running');
+  text('compute', 'Compute: pending');
+  text('pixel', 'Center pixel: pending');
+  text('background', 'Corner pixel: pending');
+  text('diagnostic', 'Shader diagnostics: none');
+  const buffers = [];
+  const buffer = (size, usage) => {
+    const value = device.createBuffer({ size, usage });
+    buffers.push(value);
+    return value;
+  };
+  device.pushErrorScope('validation');
+  try {
+    const input = buffer(16, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+    const output = buffer(16, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
+    const parameters = buffer(16, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+    // Each texture row starts at a 256-byte boundary, after the compute output.
+    const readback = buffer(768, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+    device.queue.writeBuffer(input, 0, new Uint32Array([1, 2, 3, 4]));
+    device.queue.writeBuffer(parameters, 0, new Uint32Array([factor, 0, 0, 0]));
+    const group = device.createBindGroup({
+      layout: computePipeline.getBindGroupLayout(0),
+      entries: [input, output, parameters].map((value, binding) => ({ binding, resource: { buffer: value } })),
+    });
+    const encoder = device.createCommandEncoder();
+    const compute = encoder.beginComputePass();
+    compute.setPipeline(computePipeline);
+    compute.setBindGroup(0, group);
+    compute.dispatchWorkgroups(1);
+    compute.end();
+    encoder.copyBufferToBuffer(output, 0, readback, 0, 16);
+
+    const texture = context.getCurrentTexture();
+    const render = encoder.beginRenderPass({ colorAttachments: [{
+      view: texture.createView(), clearValue: [0, 0, 0, 1], loadOp: 'clear', storeOp: 'store',
+    }] });
+    render.setPipeline(renderPipeline);
+    render.setBindGroup(0, device.createBindGroup({
+      layout: renderPipeline.getBindGroupLayout(0),
+      entries: [{ binding: 0, resource: { buffer: parameters } }],
+    }));
+    render.draw(3);
+    render.end();
+    encoder.copyTextureToBuffer({ texture, origin: [128, 128] }, { buffer: readback, offset: 256, bytesPerRow: 256 }, [1, 1]);
+    encoder.copyTextureToBuffer({ texture, origin: [0, 0] }, { buffer: readback, offset: 512, bytesPerRow: 256 }, [1, 1]);
+    device.queue.submit([encoder.finish()]);
+    await readback.mapAsync(GPUMapMode.READ);
+    const mapped = readback.getMappedRange();
+    const values = [...new Uint32Array(mapped, 0, 4)];
+    const pixel = offset => {
+      const bytes = [...new Uint8Array(mapped, offset, 4)];
+      return format.startsWith('bgra') ? [bytes[2], bytes[1], bytes[0], bytes[3]] : bytes;
+    };
+    const center = pixel(256);
+    const corner = pixel(512);
+    readback.unmap();
+    if (values.some((value, i) => value !== (i + 1) * factor)) throw new Error(`unexpected compute output: ${values}`);
+    const expected = factor === 2 ? [0, 255, 0, 255] : [0, 0, 255, 255];
+    if (center.join() !== expected.join() || corner.join() !== '0,0,0,255') {
+      throw new Error(`unexpected pixels: center ${center}; corner ${corner}`);
+    }
+    if (!stopped) {
+      text('compute', `Compute: ${values.join(', ')}`);
+      text('pixel', `Center pixel: ${center.join(', ')}`);
+      text('background', `Corner pixel: ${corner.join(', ')}`);
+      text('status', 'WebGPU ready');
+    }
+  } finally {
+    buffers.forEach(value => value.destroy());
+    const error = await device.popErrorScope();
+    if (error) fail(error);
+  }
+}
+
+async function initialize() {
+  if (!navigator.gpu) throw new Error('navigator.gpu is unavailable; use a supported iOS runtime');
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) throw new Error('no WebGPU adapter is available');
+  device = await adapter.requestDevice();
+  device.addEventListener('uncapturederror', event => fail(event.error));
+  device.lost.then(info => { if (!stopped) fail(new Error(info.message || 'GPU device lost')); });
+  context = document.getElementById('scene').getContext('webgpu');
+  if (!context) throw new Error('WebGPU canvas context is unavailable');
+  format = navigator.gpu.getPreferredCanvasFormat();
+  context.configure({ device, format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+  computePipeline = await device.createComputePipelineAsync({ layout: 'auto', compute: {
+    module: device.createShaderModule({ code: `
+      @group(0) @binding(0) var<storage, read> input: array<u32>;
+      @group(0) @binding(1) var<storage, read_write> output: array<u32>;
+      @group(0) @binding(2) var<uniform> params: vec4u;
+      @compute @workgroup_size(4) fn scale(@builtin(global_invocation_id) id: vec3u) {
+        output[id.x] = input[id.x] * params.x;
+      }
+    ` }), entryPoint: 'scale',
+  } });
+  const scene = device.createShaderModule({ code: `
+    @group(0) @binding(0) var<uniform> params: vec4u;
+    @vertex fn vertex(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+      let positions = array<vec2f, 3>(vec2f(-0.8, -0.8), vec2f(0.8, -0.8), vec2f(0, 0.8));
+      return vec4f(positions[i], 0, 1);
+    }
+    @fragment fn fragment() -> @location(0) vec4f {
+      return select(vec4f(0, 0, 1, 1), vec4f(0, 1, 0, 1), params.x == 2u);
+    }
+  ` });
+  renderPipeline = await device.createRenderPipelineAsync({ layout: 'auto',
+    vertex: { module: scene, entryPoint: 'vertex' },
+    fragment: { module: scene, entryPoint: 'fragment', targets: [{ format }] },
+    primitive: { topology: 'triangle-list' },
+  });
+  await run(2);
+}
+
+document.getElementById('double').onclick = () => bounded(() => run(2));
+document.getElementById('triple').onclick = () => bounded(() => run(3));
+document.getElementById('invalid').onclick = () => bounded(async () => {
+  text('diagnostic', 'Checking invalid shader');
+  device.pushErrorScope('validation');
+  let rejected = false;
+  try {
+    await device.createComputePipelineAsync({ layout: 'auto', compute: {
+      module: device.createShaderModule({ code: '@compute @workgroup_size(1) fn broken() { missingSymbol(); }' }),
+      entryPoint: 'broken',
+    } });
+  } catch { rejected = true; }
+  finally { await device.popErrorScope(); }
+  if (!rejected) throw new Error('invalid shader was accepted');
+  if (!stopped) text('diagnostic', 'Invalid shader rejected');
+});
+window.addEventListener('pagehide', () => { stopped = true; device?.destroy(); });
+bounded(initialize);
+</script>
+</body>
+</html>
