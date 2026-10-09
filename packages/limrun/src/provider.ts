@@ -3,9 +3,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import Limrun from '@limrun/api';
+import { createInstanceClient as connectIos } from '@limrun/api/ios-client';
+import { createInstanceClient as connectAndroid } from '@limrun/api/instance-client';
 import type { AndroidInstance } from '@limrun/api/resources/android-instances';
 import type { IosInstance } from '@limrun/api/resources/ios-instances';
-import type { DeviceProvider, DeviceRequest } from '@e2e-dev/mobile';
+import type { DeviceControlContext, DeviceLease, DeviceProvider, DeviceRequest } from '@e2e-dev/mobile';
 import { ConfigurationError, rejectUnknownKeys } from 'e2e/engine';
 import { startHeartbeat } from './heartbeat.ts';
 import { assertAndroidTools, assertDriverVersion, startDriver, stopDriver } from './daemon.ts';
@@ -81,6 +83,18 @@ function driverEnv(env: DeviceRequest['env'], instance: Instance, platform: 'ios
   return result;
 }
 
+async function control(lease: DeviceLease, context: DeviceControlContext) {
+  context.signal.throwIfAborted();
+  const client = api(context.env);
+  if (context.platform === 'ios') {
+    const instance = await client.iosInstances.get(lease.id, { signal: context.signal });
+    return connectIos({ ...access(instance), logLevel: 'error' });
+  }
+  const instance = await client.androidInstances.get(lease.id, { signal: context.signal });
+  if (!instance.status.adbWebSocketUrl) throw new Error(`Limrun instance ${lease.id} has no ADB endpoint`);
+  return connectAndroid({ ...access(instance), adbUrl: instance.status.adbWebSocketUrl, logLevel: 'error' });
+}
+
 /** One Limrun instance and isolated agent-device daemon per worker slot. */
 export function limrun(options: LimrunOptions = {}): DeviceProvider {
   rejectUnknownKeys('limrun()', options, ['region', 'hardTimeout', 'ios', 'android']);
@@ -139,6 +153,22 @@ export function limrun(options: LimrunOptions = {}): DeviceProvider {
     async release(lease, context) {
       const resource = held.get(lease.id);
       if (resource) await release(lease.id, resource, context.signal);
+    },
+    camera: {
+      async mockFeed(lease, feed, context) {
+        const client = await control(lease, context);
+        try {
+          context.signal.throwIfAborted();
+          await client.setCameraVideo(feed.source, { loop: feed.loop ?? true });
+        } finally { client.disconnect(); }
+      },
+      async clear(lease, context) {
+        const client = await control(lease, context);
+        try {
+          context.signal.throwIfAborted();
+          await client.clearCameraVideo();
+        } finally { client.disconnect(); }
+      },
     },
   };
 }

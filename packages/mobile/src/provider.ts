@@ -115,6 +115,28 @@ export interface DeviceReleaseContext {
   readonly log: (line: string) => void;
 }
 
+/** A repeatable camera recording, resolved against the test project's root. */
+export interface CameraFeed {
+  readonly type: 'video';
+  readonly source: string;
+  /** Loop the recording; defaults to true. */
+  readonly loop?: boolean;
+}
+
+/** Context for device controls called inside a worker, including cleanup. */
+export interface DeviceControlContext {
+  readonly platform: MobilePlatform;
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly signal: AbortSignal;
+}
+
+/** Injects media into the camera the app opens. The app selects the lens. */
+export interface DeviceCameraProvider {
+  /** `feed.source` is an absolute local path. */
+  mockFeed(lease: DeviceLease, feed: CameraFeed, context: DeviceControlContext): Promise<void>;
+  clear(lease: DeviceLease, context: DeviceControlContext): Promise<void>;
+}
+
 /**
  * A source of hosted devices. `acquire` is called once per worker slot, for
  * every slot at once; `release` once per lease acquired, at the end of the
@@ -126,6 +148,8 @@ export interface DeviceReleaseContext {
 export interface DeviceProvider {
   /** Label in progress lines and error messages. */
   readonly name: string;
+  /** Optional camera control, called in the worker with the travelled lease. */
+  readonly camera?: DeviceCameraProvider;
   acquire(request: DeviceRequest): Promise<DeviceLease>;
   release(lease: DeviceLease, context: DeviceReleaseContext): Promise<void>;
   /**
@@ -159,6 +183,12 @@ export function asDeviceProvider(device: object): DeviceProvider {
   }
   if (candidate.record !== undefined && typeof candidate.record !== 'function') {
     throw new ConfigurationError('INVALID_CONFIG', `mobile: device provider "${candidate.name}" has a record that is not a function`);
+  }
+  if (candidate.camera !== undefined) {
+    const camera = candidate.camera as Partial<DeviceCameraProvider> | null;
+    if (camera === null || typeof camera !== 'object' || typeof camera.mockFeed !== 'function' || typeof camera.clear !== 'function') {
+      throw new ConfigurationError('INVALID_CONFIG', `mobile: device provider "${candidate.name}" camera must implement mockFeed() and clear()`);
+    }
   }
   return device as DeviceProvider;
 }
@@ -238,7 +268,7 @@ export class LeasedDevices implements DeviceSource {
   readonly recorder: RecordingDeviceProvider | undefined;
 
   constructor(
-    private readonly provider: DeviceProvider,
+    readonly provider: DeviceProvider,
     private readonly options: Pick<MobileOptions, 'platform'>,
   ) {
     this.recorder = provider.record === undefined ? undefined : (provider as RecordingDeviceProvider);

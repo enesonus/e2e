@@ -22,7 +22,7 @@ import {
 import { bindingsVariable, decodeBindings, deviceLabel, encodeBindings, pinnedApp, type DeviceSource, type SlotBinding } from './bindings.ts';
 import { isRunnerFailure, message, runCommand } from './errors.ts';
 import type { AgentDeviceClient, MobileOptions, MobilePlatform, ClientFactory } from './options.ts';
-import { asDeviceProvider, LeasedDevices, type RecordingDeviceProvider } from './provider.ts';
+import { asDeviceProvider, LeasedDevices, type DeviceProvider, type RecordingDeviceProvider } from './provider.ts';
 
 /** An Apple simulator UDID. */
 const UDID = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i;
@@ -141,6 +141,11 @@ export class DevicePool {
     private readonly createClient: ClientFactory,
   ) {
     this.source = sourceFor(options, createClient, (targetName, slot) => this.session(targetName, slot));
+  }
+
+  /** The hosted provider in this process, including optional device controls. */
+  get provider(): DeviceProvider | undefined {
+    return this.source instanceof LeasedDevices ? this.source.provider : undefined;
   }
 
   /**
