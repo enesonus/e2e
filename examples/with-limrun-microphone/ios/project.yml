@@ -1,0 +1,20 @@
+name: MicrophoneDemo
+options:
+  bundleIdPrefix: dev.e2e
+  deploymentTarget:
+    iOS: '17.0'
+settings:
+  SWIFT_VERSION: '5.0'
+  CODE_SIGNING_ALLOWED: NO
+targets:
+  MicrophoneDemo:
+    type: application
+    platform: iOS
+    sources: [MicrophoneDemo]
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: dev.e2e.microphone
+      GENERATE_INFOPLIST_FILE: YES
+      INFOPLIST_KEY_NSMicrophoneUsageDescription: Measure microphone audio for the demo.
+      INFOPLIST_KEY_UILaunchScreen_Generation: YES
+      INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+      TARGETED_DEVICE_FAMILY: '1,2'

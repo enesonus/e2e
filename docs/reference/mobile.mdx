@@ -232,6 +232,11 @@ export interface Device {
     mockFeed(feed: { type: 'video'; source: string; loop?: boolean }): Promise<void>;
     clear(): Promise<void>;
   };
+  /** Audio input from a microphone-capable provider. Cleared after every attempt. */
+  readonly microphone: {
+    mockAudio(audio: { source: string; loop?: boolean }): Promise<void>;
+    clear(): Promise<void>;
+  };
   /**
    * A locator from an agent-device selector (`'id=SW_VERSION_SPECIFIER'`,
    * `'role=StaticText label="26.2"'`), for nodes the closed `screen` query
@@ -516,6 +521,26 @@ only when its device-side operation has completed.
 See [Test mobile apps on Limrun](/integrations/limrun) for a provider,
 permission setup, and camera library compatibility.
 
+### Microphone fixtures
+
+`device.microphone.mockAudio({ source, loop? })` plays a local audio file
+through the app's microphone capture pipeline. `source` resolves against
+the project root, and `loop` defaults to `true`. It resolves when playback
+starts. Set `loop: false` for one pass followed by silence. `clear()` stops
+injected audio and returns to silence.
+
+The engine clears after every attempt, including failures and retries.
+Missing files and invalid arguments fail before upload. A provider without
+microphone control reports `UNSUPPORTED_CAPABILITY`. Permission grants
+remain part of `app.permissions`.
+
+A `DeviceProvider` can implement `microphone.mockAudio(lease, audio, context)`
+and `microphone.clear(lease, context)`. They receive the travelled lease,
+platform, run environment, and operation's abort signal inside the worker.
+`audio.source` is absolute. The engine serializes operations and waits for
+an abandoned upload before clearing. Providers must settle promises only
+when the device operation completes, and make repeated clearing safe.
+
 ## Agent tools
 
 `mobileTools(...engines)` adds device tools to an agent's `tools`. It takes at
@@ -551,7 +576,8 @@ engine cannot prove a fallback screenshot safe when those bounds are missing.
 `MobileOptions`, `MobilePlatform`, `DevicePermission`, `LaunchPermissions`,
 `PermissionState`, `DeviceClientConfig`, `DeviceConnection`, `DeviceDaemon`,
 `DeviceProvider`, `DeviceLease`, `DeviceReleaseContext`, `DeviceRequest`,
-`Camera`, `CameraFeed`, `DeviceCameraProvider`,
+`Camera`, `CameraFeed`, `DeviceCameraProvider`, `Microphone`,
+`MicrophoneAudio`, `DeviceMicrophoneProvider`,
 `DeviceControlContext`,
 `Device`, `DeviceOrientation`, `BiometricSensor`, `ForegroundApp`,
 `InstallAppOptions`, `InstalledApp`, and `OpenAppOptions` are exported from

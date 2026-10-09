@@ -204,6 +204,45 @@ that supports simulator capture. Injecting a feed cannot restore code
 that was left out of the binary. Validate the exact library and OS used by
 your app before adopting a camera suite.
 
+## Supply microphone input
+
+Grant `microphone: 'grant'` in the target's `app.permissions`. Keep a WAV
+or MP3 fixture in your project and start the app's capture before injecting
+one-shot audio. `mockAudio()` returns when playback starts, without waiting
+for the recording to finish. It loops by default; `loop: false` plays once
+and then returns to silence. Playing another file replaces the current one.
+
+The [microphone example](https://github.com/tester-army/e2e/tree/main/examples/with-limrun-microphone)
+measures tones through AVAudioEngine on iOS and AudioRecord on Android:
+
+```ts title="tests/microphone.e2e.ts"
+import { expect } from 'e2e';
+import { test } from '@e2e-dev/mobile';
+
+test('captures known microphone audio', async ({ device, app, screen }) => {
+  await app.open();
+  await screen.getByRole('button', { name: /listen/i }).click();
+  await device.microphone.mockAudio({ source: 'fixtures/440.wav' });
+  await expect(screen.getByText('440 Hz detected')).toBeVisible();
+  await device.microphone.clear();
+  await expect(screen.getByText('Silence')).toBeVisible();
+});
+```
+
+`clear()` stops injected audio and returns to silence. The engine also clears
+audio after every attempt, including failures and retries. File paths resolve
+against the project root. Missing files fail before upload, and providers
+without microphone injection report `UNSUPPORTED_CAPABILITY`.
+
+Keep microphone setup in fixtures or between agent steps, so replayed agent
+steps see the same input. Injection supplies audio to the normal capture
+pipeline; it does not bypass microphone permission or implement speech
+recognition. Assert on your app's recorded audio or transcription separately.
+
+The native example checks two distinct tones, silence, replacement, one-shot
+playback, explicit clearing, and silence in the next attempt. Speech services
+and third-party recording libraries need their own compatibility tests.
+
 ## Next
 
 <CardGroup cols={2}>

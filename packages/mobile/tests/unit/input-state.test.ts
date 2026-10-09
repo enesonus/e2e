@@ -8,7 +8,7 @@ let root: string;
 beforeEach(async () => { root = await mkdtemp(path.join(tmpdir(), 'e2e-input-state-')); });
 afterEach(async () => { await rm(root, { recursive: true, force: true }); });
 
-it.each(['camera'] as const)('keeps %s cleanup separate for equal lease IDs on different targets', async (kind) => {
+it.each(['camera', 'microphone'] as const)('keeps %s cleanup separate for equal lease IDs on different targets', async (kind) => {
   const first = new LeaseInputState(root, 'run', 'first-target', 'lease-1', kind);
   const second = new LeaseInputState(root, 'run', 'second-target', 'lease-1', kind);
   await first.mark('input');

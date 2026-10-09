@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { LeaseCamera } from '../../src/camera.ts';
+import { LeaseMicrophone } from '../../src/microphone.ts';
 import type { DeviceProvider } from '../../src/provider.ts';
 import { boot, harness } from '../helpers/harness.ts';
 import { ignoreTrace, noSecrets } from '../helpers/secrets.ts';
@@ -16,26 +17,31 @@ beforeEach(async () => {
 });
 afterEach(async () => { await rm(root, { recursive: true, force: true }); });
 
-it.each(['camera'] as const)('queues %s file validation before clear and reset', async (kind) => {
+it.each(['camera', 'microphone'] as const)('queues %s file validation before clear and reset', async (kind) => {
   for (const cleanup of ['clear', 'reset']) {
     const events: string[] = [];
     const apply = async () => { events.push('apply'); };
     const clear = async () => { events.push('clear'); };
     const camera = new LeaseCamera();
+    const microphone = new LeaseMicrophone();
     camera.init({ mockFeed: apply, clear }, lease, 'ios', root, {});
-    const upload = camera.mockFeed({ type: 'video', source: 'input' }, signal());
-    const reset = cleanup === 'reset' ? { camera }[kind].reset(signal())
-      : camera.clear(signal());
+    microphone.init({ mockAudio: apply, clear }, lease, 'ios', root, {});
+    const upload = kind === 'camera' ? camera.mockFeed({ type: 'video', source: 'input' }, signal())
+      : microphone.mockAudio({ source: 'input' }, signal());
+    const reset = cleanup === 'reset' ? { camera, microphone }[kind].reset(signal())
+      : kind === 'camera' ? camera.clear(signal())
+      : microphone.clear(signal());
     await Promise.all([upload, reset]);
     expect(events).toEqual(['apply', 'clear']);
   }
 });
 
-it.each(['camera'] as const)('preserves %s cleanup when another target clears an equal lease ID', async (kind) => {
+it.each(['camera', 'microphone'] as const)('preserves %s cleanup when another target clears an equal lease ID', async (kind) => {
   const clear = vi.fn(async () => {});
   const provider: DeviceProvider = {
     name: 'cloud', acquire: async () => ({ ...lease, deviceId: 'device' }), release: async () => {},
     camera: { mockFeed: async () => {}, clear },
+    microphone: { mockAudio: async () => {}, clear },
   };
   const environments = [];
   for (const targetName of ['first', 'second']) {
@@ -46,6 +52,7 @@ it.each(['camera'] as const)('preserves %s cleanup when another target clears an
     await boot(worker, targetName, 0, prepared?.env, root);
     const source = path.join(root, 'input');
     if (kind === 'camera') await worker.surface.camera.mockFeed({ type: 'video', source }, signal());
+    if (kind === 'microphone') await worker.surface.microphone.mockAudio({ source }, signal());
   }
   for (const [index, targetName] of ['first', 'second'].entries()) {
     const replacement = harness({ device: provider });

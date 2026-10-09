@@ -123,6 +123,21 @@ export interface CameraFeed {
   readonly loop?: boolean;
 }
 
+/** Repeatable microphone audio, resolved against the test project's root. */
+export interface MicrophoneAudio {
+  readonly source: string;
+  /** Loop the recording; defaults to true. */
+  readonly loop?: boolean;
+}
+
+/** Injects audio through the app's normal microphone capture pipeline. */
+export interface DeviceMicrophoneProvider {
+  /** `audio.source` is an absolute local path. */
+  mockAudio(lease: DeviceLease, audio: MicrophoneAudio, context: DeviceControlContext): Promise<void>;
+  /** Stop injected audio and return to silence. */
+  clear(lease: DeviceLease, context: DeviceControlContext): Promise<void>;
+}
+
 /** Context for device controls called inside a worker, including cleanup. */
 export interface DeviceControlContext {
   readonly platform: MobilePlatform;
@@ -150,6 +165,8 @@ export interface DeviceProvider {
   readonly name: string;
   /** Optional camera control, called in the worker with the travelled lease. */
   readonly camera?: DeviceCameraProvider;
+  /** Optional microphone control, called in the worker with the travelled lease. */
+  readonly microphone?: DeviceMicrophoneProvider;
   acquire(request: DeviceRequest): Promise<DeviceLease>;
   release(lease: DeviceLease, context: DeviceReleaseContext): Promise<void>;
   /**
@@ -188,6 +205,12 @@ export function asDeviceProvider(device: object): DeviceProvider {
     const camera = candidate.camera as Partial<DeviceCameraProvider> | null;
     if (camera === null || typeof camera !== 'object' || typeof camera.mockFeed !== 'function' || typeof camera.clear !== 'function') {
       throw new ConfigurationError('INVALID_CONFIG', `mobile: device provider "${candidate.name}" camera must implement mockFeed() and clear()`);
+    }
+  }
+  if (candidate.microphone !== undefined) {
+    const microphone = candidate.microphone as Partial<DeviceMicrophoneProvider> | null;
+    if (microphone === null || typeof microphone !== 'object' || typeof microphone.mockAudio !== 'function' || typeof microphone.clear !== 'function') {
+      throw new ConfigurationError('INVALID_CONFIG', `mobile: device provider "${candidate.name}" microphone must implement mockAudio() and clear()`);
     }
   }
   return device as DeviceProvider;

@@ -6,7 +6,7 @@
  */
 
 import type { EngineFixtureContext, Locator } from 'e2e/engine';
-import type { CameraFeed } from './provider.ts';
+import type { CameraFeed, MicrophoneAudio } from './provider.ts';
 import { linkLabel, linkTarget } from './links.ts';
 import type { DevicePermission, PermissionState } from './options.ts';
 import type { AgentDeviceSurface, FoldPose, InstallAppOptions, InstalledApp, OpenAppOptions } from './surface.ts';
@@ -29,9 +29,18 @@ export interface Camera {
   clear(): Promise<void>;
 }
 
+/** Microphone setup is cleared after every attempt, including failures and retries. */
+export interface Microphone {
+  /** Play a local audio file through the app's microphone. Returns when playback starts. */
+  mockAudio(audio: MicrophoneAudio): Promise<void>;
+  /** Stop injected audio and return to silence. Safe to call repeatedly. */
+  clear(): Promise<void>;
+}
+
 /** Deterministic device management exposed to tests as `device`. */
 export interface Device {
   readonly camera: Camera;
+  readonly microphone: Microphone;
   /**
    * A locator from an agent-device selector (`'id=SW_VERSION_SPECIFIER'`,
    * `'role=StaticText label="26.2"'`), for nodes the closed `screen` query
@@ -142,8 +151,16 @@ export function createDeviceFixture(surface: AgentDeviceSurface, context: Engine
     mockFeed: { kind: 'resource', label: (feed) => feed?.source ?? '' },
     clear: { kind: 'resource' },
   });
+  const microphone = context.fixture<Microphone>('device.microphone', {
+    mockAudio: (audio) => surface.microphone.mockAudio(audio, context.signal),
+    clear: () => surface.microphone.clear(context.signal),
+  }, {
+    mockAudio: { kind: 'resource', label: (audio) => audio?.source ?? '' },
+    clear: { kind: 'resource' },
+  });
   const device: Device = {
     camera,
+    microphone,
     locator: (selector) => context.locator({ kind: 'selector', selector }),
     async setNetwork(state) {
       await surface.command(

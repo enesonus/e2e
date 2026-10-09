@@ -61,6 +61,7 @@ import { maskPng } from './png.ts';
 import { deviceLabel, pinnedApp, type SlotBinding } from './bindings.ts';
 import { assertAppId } from './links.ts';
 import { LeaseCamera } from './camera.ts';
+import { LeaseMicrophone } from './microphone.ts';
 import { DevicePool, deviceSelection, type DeviceSelection } from './pool.ts';
 import { recordLease, travelledLease, type DeviceLease, type RecordingDeviceProvider } from './provider.ts';
 import {
@@ -352,6 +353,7 @@ function tellHarness(call: () => void): void {
 
 export class AgentDeviceSurface {
   readonly camera = new LeaseCamera();
+  readonly microphone = new LeaseMicrophone();
   private client: AgentDeviceClient | undefined;
   private attempt: Attempt | undefined;
   /** The attempt's `EngineAttemptContext.screen`, which locate captures feed; undefined between attempts. */
@@ -507,6 +509,7 @@ export class AgentDeviceSurface {
     const provider = this.pool.recorder;
     const lease = travelledLease(binding);
     this.camera.init(this.pool.provider?.camera, lease, this.options.platform, info.projectRoot, info.env, info.runId, info.targetName);
+    this.microphone.init(this.pool.provider?.microphone, lease, this.options.platform, info.projectRoot, info.env, info.runId, info.targetName);
     this.leaseRecorder =
       provider === undefined || lease === undefined
         ? undefined
@@ -537,13 +540,19 @@ export class AgentDeviceSurface {
     return open ? app : undefined;
   }
 
+  /** Try every control reset even when one fails, so unrelated state never survives cleanup. */
+  private async resetControls(signal: AbortSignal): Promise<void> {
+    const results = await Promise.allSettled([this.camera.reset(signal), this.microphone.reset(signal)]);
+    const failed = results.find((result) => result.status === 'rejected');
+    if (failed?.status === 'rejected') throw failed.reason;
+  }
 
   async startAttempt(context: EngineAttemptContext): Promise<void> {
     if (this.attempt !== undefined) {
       throw invalidState('an attempt is already running on this agent-device engine');
     }
     await this.settleInflight(context.signal);
-    await this.camera.reset(context.signal);
+    await this.resetControls(context.signal);
     // Nothing is launched here: the app is where the last test, or the
     // worker's `prepare`, left it, and a test that wants it fresh calls
     // `app.open()`, which is `restart` below. The bindings are forgotten, the
@@ -574,7 +583,7 @@ export class AgentDeviceSurface {
       await this.settleInflight(context.signal).catch(() => undefined);
       await this.stopScreenRecording(context.signal).catch(() => undefined);
     }
-    await this.camera.reset(context.signal);
+    await this.resetControls(context.signal);
   }
 
   // --- video ---
@@ -695,7 +704,7 @@ export class AgentDeviceSurface {
     this.installedApp = undefined;
     this.knownViewport = undefined;
     try {
-      await withinCleanupBudget(this.camera.reset(context.signal), context);
+      await withinCleanupBudget(this.resetControls(context.signal), context);
     } finally {
       if (client !== undefined) await withinCleanupBudget(client.sessions.close().catch(() => undefined), context);
     }

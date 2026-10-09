@@ -26,6 +26,8 @@ forms, validation, updated results, and restart. No AI key is needed.
 
 [with-limrun-camera](with-limrun-camera) demonstrates QR scanning with known camera input on iOS and Android.
 
+[with-limrun-microphone](with-limrun-microphone) demonstrates recording known tones and silence on iOS and Android.
+
 ## For contributors
 
 Run the suite locally after changes. Update the README's "Last checked"
