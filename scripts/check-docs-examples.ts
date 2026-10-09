@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 /** Example file to the page that shows it verbatim. */
 const EXAMPLES: Record<string, string> = {
+  'docs/examples/limrun/storekit.e2e.ts': 'docs/integrations/limrun.mdx',
   'docs/examples/limrun/microphone.e2e.ts': 'docs/integrations/limrun.mdx',
   'docs/examples/limrun/scanner.e2e.ts': 'docs/integrations/limrun.mdx',
   'docs/examples/limrun/e2e.config.ts': 'docs/integrations/limrun.mdx',

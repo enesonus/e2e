@@ -6,7 +6,7 @@
  */
 
 import type { EngineFixtureContext, Locator } from 'e2e/engine';
-import type { CameraFeed, MicrophoneAudio } from './provider.ts';
+import type { CameraFeed, MicrophoneAudio, StoreKitConfig } from './provider.ts';
 import { linkLabel, linkTarget } from './links.ts';
 import type { DevicePermission, PermissionState } from './options.ts';
 import type { AgentDeviceSurface, FoldPose, InstallAppOptions, InstalledApp, OpenAppOptions } from './surface.ts';
@@ -37,10 +37,19 @@ export interface Microphone {
   clear(): Promise<void>;
 }
 
+/** Catalogs are cleared after every attempt; transactions and entitlements are not reset. */
+export interface StoreKit {
+  /** Apply a local .storekit catalog, then restart the app to refresh its products. iOS only. */
+  setConfig(config: StoreKitConfig): Promise<void>;
+  /** Remove a catalog for this app, preserving purchase history. Safe to call repeatedly. */
+  clearConfig(bundleId: string): Promise<void>;
+}
+
 /** Deterministic device management exposed to tests as `device`. */
 export interface Device {
   readonly camera: Camera;
   readonly microphone: Microphone;
+  readonly storekit: StoreKit;
   /**
    * A locator from an agent-device selector (`'id=SW_VERSION_SPECIFIER'`,
    * `'role=StaticText label="26.2"'`), for nodes the closed `screen` query
@@ -158,9 +167,17 @@ export function createDeviceFixture(surface: AgentDeviceSurface, context: Engine
     mockAudio: { kind: 'resource', label: (audio) => audio?.source ?? '' },
     clear: { kind: 'resource' },
   });
+  const storekit = context.fixture<StoreKit>('device.storekit', {
+    setConfig: (config) => surface.storekit.setConfig(config, context.signal),
+    clearConfig: (bundleId) => surface.storekit.clearConfig(bundleId, context.signal),
+  }, {
+    setConfig: { kind: 'resource', label: (config) => config?.bundleId ?? '' },
+    clearConfig: { kind: 'resource', label: (bundleId) => bundleId },
+  });
   const device: Device = {
     camera,
     microphone,
+    storekit,
     locator: (selector) => context.locator({ kind: 'selector', selector }),
     async setNetwork(state) {
       await surface.command(

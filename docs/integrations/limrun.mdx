@@ -243,6 +243,65 @@ The native example checks two distinct tones, silence, replacement, one-shot
 playback, explicit clearing, and silence in the next attempt. Speech services
 and third-party recording libraries need their own compatibility tests.
 
+## Test in-app purchases
+
+Use an ad hoc signed iOS simulator build and a local `.storekit` file created
+in Xcode. Limrun's remote Xcode builds use ad hoc signing by default for
+simulator apps. No App Store Connect catalog or sandbox Apple account is
+needed for these local tests.
+
+Apply the catalog before opening the app. If the app is already running,
+call `app.restart()` after changing the catalog so its product cache refreshes.
+The [StoreKit example](https://github.com/tester-army/e2e/tree/main/examples/with-limrun-storekit)
+contains a native StoreKit 2 app and catalogs for consumables, a premium
+unlock, and a monthly subscription.
+
+```ts title="tests/storekit.e2e.ts"
+import { expect } from 'e2e';
+import { test } from '@e2e-dev/mobile';
+
+test('shows the local product catalog', async ({ device, app, screen }) => {
+  await device.storekit.setConfig({
+    bundleId: 'dev.e2e.storekit',
+    source: 'fixtures/Catalog.storekit',
+  });
+  await app.open();
+  await expect(screen.getByRole('button', { name: 'Buy Premium' })).toBeVisible();
+});
+```
+
+The example uses a Limrun iPad and `transition: 2000` for StoreKit sheet
+animations. Drive the purchase sheet with normal `screen` locators and
+assert on your app's purchase result or entitlement. Keep catalog setup in fixtures or
+between agent steps. `source` resolves against the project root; missing
+files, invalid bundle IDs, and invalid JSON fail before upload. Xcode owns
+the catalog schema; e2e checks that the file contains a JSON object.
+
+`device.storekit.clearConfig(bundleId)` removes that app's local catalog.
+The engine also clears every catalog it touched after each attempt,
+including failures and retries. An upload that outlives its action timeout
+must settle before cleanup. Android and providers without StoreKit support
+report `UNSUPPORTED_CAPABILITY`.
+
+**Clearing a catalog does not erase transactions or entitlements.** A worker
+reuses its simulator for the run. Use consumables or separate product IDs
+for independent purchase cases, and start a new run when a scenario needs
+empty purchase history. Clearing returns StoreKit to its normal sandbox
+behavior; it does not install an empty catalog. Use an empty `.storekit`
+file when you need deterministic zero-product behavior.
+
+Purchase-sheet locators were verified on iPad with iOS 26.4. On iPhone 16 Pro
+with iOS 26.4, the Purchase button can disappear from the accessibility tree
+while remaining visible; that automation issue also reproduces with the
+Limrun SDK directly. Use the iPad example for the verified purchase flows.
+
+These controls configure local StoreKit testing. They do not expose refund,
+subscription-expiry, transaction-reset, or payment-failure commands.
+Local transactions cannot validate an Apple production receipt or your
+server's App Store integration. Verify your app's StoreKit wrapper and
+simulator runtime separately, especially legacy StoreKit 1 receipt and
+restore flows.
+
 ## Next
 
 <CardGroup cols={2}>

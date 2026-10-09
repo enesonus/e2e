@@ -28,6 +28,8 @@ forms, validation, updated results, and restart. No AI key is needed.
 
 [with-limrun-microphone](with-limrun-microphone) demonstrates recording known tones and silence on iOS and Android.
 
+[with-limrun-storekit](with-limrun-storekit) demonstrates local iOS product catalogs, purchases, and entitlements.
+
 ## For contributors
 
 Run the suite locally after changes. Update the README's "Last checked"

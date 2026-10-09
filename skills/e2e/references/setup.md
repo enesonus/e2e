@@ -338,6 +338,11 @@ export default {
   With agent-device 0.21.22, iOS keyboard actions such as `locator.press('Enter')`
   return `UNSUPPORTED_CAPABILITY`; tap an app button when available.
   See `examples/with-limrun` for the same form and restart tests on both platforms.
+  On iOS, call `device.storekit.setConfig({ bundleId, source: 'fixtures/Catalog.storekit' })`
+  before opening the app, or restart it afterwards. Use an ad hoc signed simulator build.
+  `device.storekit.clearConfig(bundleId)` and automatic cleanup remove catalogs only.
+  Neither resets purchases or entitlements. Use a fresh run for empty purchase history.
+  Android, refunds, expiry, and transaction-reset commands are unsupported.
   Microphone tests call `device.microphone.mockAudio({ source: 'fixtures/voice.wav' })`.
   Audio loops by default; `loop: false` plays once. Start capture before one-shot input.
   Grant microphone permission before opening the app. The engine clears audio after

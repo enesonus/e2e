@@ -1,5 +1,5 @@
 /** Compile-time assertions for the device engine's options and the hosted device provider seam. */
-import type { CameraFeed, DeviceCameraProvider, MicrophoneAudio, DeviceMicrophoneProvider, DeviceLease, DeviceProvider, DeviceRequest, MobileOptions } from '../../src/index.ts';
+import type { StoreKitConfig, DeviceStoreKitProvider, CameraFeed, DeviceCameraProvider, MicrophoneAudio, DeviceMicrophoneProvider, DeviceLease, DeviceProvider, DeviceRequest, MobileOptions } from '../../src/index.ts';
 
 ({ platform: 'ios', device: 'iPhone 16' }) satisfies MobileOptions;
 ({ platform: 'android', device: ['Pixel_8', 'Pixel_9'] }) satisfies MobileOptions;
@@ -51,3 +51,11 @@ const farm = {
 ({ source: 'voice.wav', loop: 'yes' }) satisfies MicrophoneAudio;
 // @ts-expect-error a microphone provider must clear its injected audio.
 ({ mockAudio: async () => undefined }) satisfies DeviceMicrophoneProvider;
+
+({ bundleId: 'com.example.app', source: 'fixtures/Catalog.storekit' }) satisfies StoreKitConfig;
+// @ts-expect-error StoreKit configuration must name the app.
+({ source: 'Catalog.storekit' }) satisfies StoreKitConfig;
+// @ts-expect-error transaction resets are not catalog configuration.
+({ bundleId: 'com.example.app', source: 'Catalog.storekit', resetTransactions: true }) satisfies StoreKitConfig;
+// @ts-expect-error a StoreKit provider must clear its catalogs.
+({ setConfig: async () => undefined }) satisfies DeviceStoreKitProvider;
