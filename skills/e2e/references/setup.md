@@ -338,6 +338,8 @@ export default {
   With agent-device 0.21.22, iOS keyboard actions such as `locator.press('Enter')`
   return `UNSUPPORTED_CAPABILITY`; tap an app button when available.
   See `examples/with-limrun` for the same form and restart tests on both platforms.
+  WebGPU needs no control API. See `examples/with-limrun-webgpu` for an iOS app
+  that executes shaders and checks compute and pixel readback without a CPU fallback.
   On iOS, call `device.storekit.setConfig({ bundleId, source: 'fixtures/Catalog.storekit' })`
   before opening the app, or restart it afterwards. Use an ad hoc signed simulator build.
   `device.storekit.clearConfig(bundleId)` and automatic cleanup remove catalogs only.
