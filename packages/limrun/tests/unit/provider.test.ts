@@ -1,3 +1,4 @@
+import { readFile, stat } from 'node:fs/promises';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { limrun } from '../../src/provider.ts';
 import type { DeviceRequest } from '@e2e-dev/mobile';
@@ -7,6 +8,7 @@ const mocks = vi.hoisted(() => {
   return {
     heartbeat: vi.fn(), stopHeartbeat: vi.fn(async () => {}), ios: endpoints(), android: endpoints(), options: vi.fn(), start: vi.fn(), stop: vi.fn(async () => {}), version: vi.fn(), androidTools: vi.fn(async () => {}),
     connectIos: vi.fn(), connectAndroid: vi.fn(), setCameraVideo: vi.fn(async () => {}), clearCameraVideo: vi.fn(async () => {}), disconnect: vi.fn(),
+    pushFile: vi.fn(async (_source: string, destination: string) => destination), playOnMicrophone: vi.fn(async () => {}), stopMicrophonePlayback: vi.fn(async () => {}),
     NotFoundError: class NotFoundError extends Error {},
   };
 });
@@ -36,8 +38,8 @@ beforeEach(() => {
   mocks.android.create.mockResolvedValue(instance('android-test'));
   mocks.android.get.mockResolvedValue(instance('android-test'));
   mocks.start.mockResolvedValue({ client: { stateDir: '/state', leaseId: 'driver-lease' }, deviceId: 'limrun:ios:driver-lease' });
-  const control = { setCameraVideo: mocks.setCameraVideo, clearCameraVideo: mocks.clearCameraVideo, disconnect: mocks.disconnect };
-  mocks.connectIos.mockResolvedValue({ ...control });
+  const control = { pushFile: mocks.pushFile, playOnMicrophone: mocks.playOnMicrophone, setCameraVideo: mocks.setCameraVideo, clearCameraVideo: mocks.clearCameraVideo, disconnect: mocks.disconnect };
+  mocks.connectIos.mockResolvedValue({ ...control, stopMicrophonePlayback: mocks.stopMicrophonePlayback });
   mocks.connectAndroid.mockResolvedValue(control);
 });
 
@@ -139,6 +141,47 @@ it('refuses missing Android tools before allocating anything', async () => {
   mocks.androidTools.mockRejectedValueOnce(new Error('adb missing'));
   await expect(limrun().acquire(request({ platform: 'android' }))).rejects.toThrow(/adb missing/);
   expect(mocks.android.create).not.toHaveBeenCalled();
+});
+
+it.each(['ios', 'android'] as const)('stages and plays %s audio from a fresh worker using the travelled lease', async (platform) => {
+  const context = { platform, env: { LIMRUN_API_KEY: 'worker-key' }, signal: new AbortController().signal };
+  const provider = limrun();
+  await provider.microphone!.mockAudio({ id: `${platform}-test` }, { source: '/project/tone.wav', loop: false }, context);
+  const remote = platform === 'ios' ? 'e2e-microphone' : '/data/local/tmp/e2e-microphone';
+  expect(mocks.pushFile).toHaveBeenCalledWith('/project/tone.wav', remote);
+  expect(mocks.playOnMicrophone).toHaveBeenCalledWith(remote, { once: true });
+  expect(mocks.disconnect).toHaveBeenCalledTimes(1);
+  expect(mocks.options).toHaveBeenCalledWith(expect.objectContaining({ apiKey: 'worker-key' }));
+});
+
+it('stops iOS audio without relying on state kept by the injecting provider', async () => {
+  await limrun().microphone!.clear({ id: 'ios-test' }, { platform: 'ios', env: request().env, signal: new AbortController().signal });
+  expect(mocks.stopMicrophonePlayback).toHaveBeenCalledTimes(1);
+  expect(mocks.disconnect).toHaveBeenCalledTimes(1);
+});
+
+it('replaces Android playback with one pass of PCM silence and removes the local temporary file', async () => {
+  let source = '';
+  mocks.pushFile.mockImplementationOnce(async (file, destination) => {
+    source = file;
+    const wav = await readFile(file);
+    expect(wav.toString('ascii', 0, 4)).toBe('RIFF');
+    expect(wav.readUInt32LE(40)).toBe(wav.length - 44);
+    expect(wav.subarray(44).every((value) => value === 0)).toBe(true);
+    return destination;
+  });
+  await limrun().microphone!.clear({ id: 'android-test' }, { platform: 'android', env: request().env, signal: new AbortController().signal });
+  expect(mocks.playOnMicrophone).toHaveBeenCalledWith('/data/local/tmp/e2e-microphone', { once: true });
+  await expect(stat(source)).rejects.toMatchObject({ code: 'ENOENT' });
+  expect(mocks.disconnect).toHaveBeenCalledTimes(1);
+});
+
+it('does not start playback after cancellation during upload, and disconnects', async () => {
+  const controller = new AbortController();
+  mocks.pushFile.mockImplementationOnce(async (_file, destination) => { controller.abort(); return destination; });
+  await expect(limrun().microphone!.mockAudio({ id: 'ios-test' }, { source: '/tone.wav' }, { platform: 'ios', env: request().env, signal: controller.signal })).rejects.toThrow();
+  expect(mocks.playOnMicrophone).not.toHaveBeenCalled();
+  expect(mocks.disconnect).toHaveBeenCalledTimes(1);
 });
 
 

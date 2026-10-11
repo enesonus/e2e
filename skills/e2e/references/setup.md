@@ -338,6 +338,10 @@ export default {
   With agent-device 0.21.22, iOS keyboard actions such as `locator.press('Enter')`
   return `UNSUPPORTED_CAPABILITY`; tap an app button when available.
   See `examples/with-limrun` for the same form and restart tests on both platforms.
+  Microphone tests call `device.microphone.mockAudio({ source: 'fixtures/voice.wav' })`.
+  Audio loops by default; `loop: false` plays once. Start capture before one-shot input.
+  Grant microphone permission before opening the app. The engine clears audio after
+  every attempt; `device.microphone.clear()` stops it earlier.
   Camera tests call `device.camera.mockFeed({ type: 'video', source: 'fixtures/qr.mp4' })`
   in fixtures or between agent steps. Grant camera permission before opening the app.
   Android camera injection requires Android 15 or newer, the provider's default.

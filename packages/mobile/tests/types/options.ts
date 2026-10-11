@@ -1,5 +1,5 @@
 /** Compile-time assertions for the device engine's options and the hosted device provider seam. */
-import type { CameraFeed, DeviceCameraProvider, DeviceLease, DeviceProvider, DeviceRequest, MobileOptions } from '../../src/index.ts';
+import type { CameraFeed, DeviceCameraProvider, MicrophoneAudio, DeviceMicrophoneProvider, DeviceLease, DeviceProvider, DeviceRequest, MobileOptions } from '../../src/index.ts';
 
 ({ platform: 'ios', device: 'iPhone 16' }) satisfies MobileOptions;
 ({ platform: 'android', device: ['Pixel_8', 'Pixel_9'] }) satisfies MobileOptions;
@@ -43,3 +43,11 @@ const farm = {
 ({ type: 'video', source: 'qr.mp4', facing: 'front' }) satisfies CameraFeed;
 // @ts-expect-error a camera provider must be able to clear the source it sets.
 ({ mockFeed: async () => undefined }) satisfies DeviceCameraProvider;
+
+({ source: 'fixtures/voice.wav', loop: false }) satisfies MicrophoneAudio;
+// @ts-expect-error microphone fixtures require a source.
+({ loop: true }) satisfies MicrophoneAudio;
+// @ts-expect-error looping is a boolean.
+({ source: 'voice.wav', loop: 'yes' }) satisfies MicrophoneAudio;
+// @ts-expect-error a microphone provider must clear its injected audio.
+({ mockAudio: async () => undefined }) satisfies DeviceMicrophoneProvider;
