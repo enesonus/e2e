@@ -10,6 +10,7 @@ import type { IosInstance } from '@limrun/api/resources/ios-instances';
 import type { DeviceControlContext, DeviceLease, DeviceProvider, DeviceRequest } from '@e2e-dev/mobile';
 import { ConfigurationError, rejectUnknownKeys } from 'e2e/engine';
 import { microphoneControl } from './microphone.ts';
+import { storekitControl } from './storekit.ts';
 import { startHeartbeat } from './heartbeat.ts';
 import { assertAndroidTools, assertDriverVersion, startDriver, stopDriver } from './daemon.ts';
 
@@ -156,6 +157,7 @@ export function limrun(options: LimrunOptions = {}): DeviceProvider {
       if (resource) await release(lease.id, resource, context.signal);
     },
     microphone: microphoneControl(control),
+    storekit: storekitControl(control),
     camera: {
       async mockFeed(lease, feed, context) {
         const client = await control(lease, context);

@@ -12,9 +12,9 @@ import type { Device } from './device.ts';
 export { mobile } from './engine.ts';
 export type { DevicePermission, LaunchPermissions, MobileOptions, MobilePlatform, PermissionState } from './options.ts';
 export type { DeviceClientConfig, DeviceConnection, DeviceDaemon } from './bindings.ts';
-export type { CameraFeed, MicrophoneAudio, DeviceMicrophoneProvider, DeviceCameraProvider, DeviceControlContext, DeviceLease, DeviceProvider, DeviceReleaseContext, DeviceRequest } from './provider.ts';
+export type { StoreKitConfig, DeviceStoreKitProvider, CameraFeed, MicrophoneAudio, DeviceMicrophoneProvider, DeviceCameraProvider, DeviceControlContext, DeviceLease, DeviceProvider, DeviceReleaseContext, DeviceRequest } from './provider.ts';
 export type { FoldPose, InstallAppOptions, InstalledApp, OpenAppOptions } from './surface.ts';
-export type { BiometricSensor, Camera, Microphone, Device, DeviceOrientation, ForegroundApp } from './device.ts';
+export type { BiometricSensor, Camera, Microphone, StoreKit, Device, DeviceOrientation, ForegroundApp } from './device.ts';
 
 /**
  * `test` typed with this engine's contributed `device` fixture. The same

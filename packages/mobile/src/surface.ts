@@ -62,6 +62,7 @@ import { deviceLabel, pinnedApp, type SlotBinding } from './bindings.ts';
 import { assertAppId } from './links.ts';
 import { LeaseCamera } from './camera.ts';
 import { LeaseMicrophone } from './microphone.ts';
+import { LeaseStoreKit } from './storekit.ts';
 import { DevicePool, deviceSelection, type DeviceSelection } from './pool.ts';
 import { recordLease, travelledLease, type DeviceLease, type RecordingDeviceProvider } from './provider.ts';
 import {
@@ -354,6 +355,7 @@ function tellHarness(call: () => void): void {
 export class AgentDeviceSurface {
   readonly camera = new LeaseCamera();
   readonly microphone = new LeaseMicrophone();
+  readonly storekit = new LeaseStoreKit();
   private client: AgentDeviceClient | undefined;
   private attempt: Attempt | undefined;
   /** The attempt's `EngineAttemptContext.screen`, which locate captures feed; undefined between attempts. */
@@ -510,6 +512,7 @@ export class AgentDeviceSurface {
     const lease = travelledLease(binding);
     this.camera.init(this.pool.provider?.camera, lease, this.options.platform, info.projectRoot, info.env, info.runId, info.targetName);
     this.microphone.init(this.pool.provider?.microphone, lease, this.options.platform, info.projectRoot, info.env, info.runId, info.targetName);
+    this.storekit.init(this.pool.provider?.storekit, lease, this.options.platform, info.projectRoot, info.env, info.runId, info.targetName);
     this.leaseRecorder =
       provider === undefined || lease === undefined
         ? undefined
@@ -542,7 +545,7 @@ export class AgentDeviceSurface {
 
   /** Try every control reset even when one fails, so unrelated state never survives cleanup. */
   private async resetControls(signal: AbortSignal): Promise<void> {
-    const results = await Promise.allSettled([this.camera.reset(signal), this.microphone.reset(signal)]);
+    const results = await Promise.allSettled([this.camera.reset(signal), this.microphone.reset(signal), this.storekit.reset(signal)]);
     const failed = results.find((result) => result.status === 'rejected');
     if (failed?.status === 'rejected') throw failed.reason;
   }

@@ -138,6 +138,19 @@ export interface DeviceMicrophoneProvider {
   clear(lease: DeviceLease, context: DeviceControlContext): Promise<void>;
 }
 
+/** A local StoreKit catalog for one iOS app. */
+export interface StoreKitConfig {
+  readonly bundleId: string;
+  readonly source: string;
+}
+
+/** Configures local StoreKit testing; clearing a catalog preserves purchase history. */
+export interface DeviceStoreKitProvider {
+  /** `config.source` is an absolute local path to a JSON StoreKit catalog. */
+  setConfig(lease: DeviceLease, config: StoreKitConfig, context: DeviceControlContext): Promise<void>;
+  clearConfig(lease: DeviceLease, bundleId: string, context: DeviceControlContext): Promise<void>;
+}
+
 /** Context for device controls called inside a worker, including cleanup. */
 export interface DeviceControlContext {
   readonly platform: MobilePlatform;
@@ -167,6 +180,8 @@ export interface DeviceProvider {
   readonly camera?: DeviceCameraProvider;
   /** Optional microphone control, called in the worker with the travelled lease. */
   readonly microphone?: DeviceMicrophoneProvider;
+  /** Optional iOS StoreKit control, called in the worker with the travelled lease. */
+  readonly storekit?: DeviceStoreKitProvider;
   acquire(request: DeviceRequest): Promise<DeviceLease>;
   release(lease: DeviceLease, context: DeviceReleaseContext): Promise<void>;
   /**
@@ -211,6 +226,12 @@ export function asDeviceProvider(device: object): DeviceProvider {
     const microphone = candidate.microphone as Partial<DeviceMicrophoneProvider> | null;
     if (microphone === null || typeof microphone !== 'object' || typeof microphone.mockAudio !== 'function' || typeof microphone.clear !== 'function') {
       throw new ConfigurationError('INVALID_CONFIG', `mobile: device provider "${candidate.name}" microphone must implement mockAudio() and clear()`);
+    }
+  }
+  if (candidate.storekit !== undefined) {
+    const storekit = candidate.storekit as Partial<DeviceStoreKitProvider> | null;
+    if (storekit === null || typeof storekit !== 'object' || typeof storekit.setConfig !== 'function' || typeof storekit.clearConfig !== 'function') {
+      throw new ConfigurationError('INVALID_CONFIG', `mobile: device provider "${candidate.name}" storekit must implement setConfig() and clearConfig()`);
     }
   }
   return device as DeviceProvider;

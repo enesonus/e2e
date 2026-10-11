@@ -6,7 +6,7 @@ import path from 'node:path';
 export class LeaseInputState {
   private readonly directory: string;
 
-  constructor(root: string, runId: string, targetName: string, leaseId: string, kind: 'camera' | 'microphone') {
+  constructor(root: string, runId: string, targetName: string, leaseId: string, kind: 'camera' | 'microphone' | 'storekit') {
     const key = createHash('sha256').update(JSON.stringify([runId, targetName, leaseId])).digest('hex');
     this.directory = path.join(root, '.e2e', 'device-inputs', key, kind);
   }

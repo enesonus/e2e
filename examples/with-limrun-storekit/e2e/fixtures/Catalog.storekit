@@ -1,0 +1,72 @@
+{
+  "identifier": "E2EStoreKitDemo",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "0.99",
+      "familyShareable": false,
+      "internalID": "C87E9E28",
+      "localizations": [
+        {
+          "description": "Fixture purchase",
+          "displayName": "Premium",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "dev.e2e.storekit.premium",
+      "referenceName": "Premium",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "0.99",
+      "familyShareable": false,
+      "internalID": "E2ECOINS",
+      "localizations": [
+        {
+          "description": "Fixture purchase",
+          "displayName": "Coins",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "dev.e2e.storekit.coins",
+      "referenceName": "Coins",
+      "type": "Consumable"
+    }
+  ],
+  "settings": {},
+  "subscriptionGroups": [
+    {
+      "id": "4F31BE19",
+      "localizations": [],
+      "name": "Fixture subscriptions",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "1.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "A9D5A208",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "Monthly fixture subscription",
+              "displayName": "Monthly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "dev.e2e.storekit.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Monthly",
+          "subscriptionGroupID": "4F31BE19",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

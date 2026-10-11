@@ -1,4 +1,6 @@
-import { readFile, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { readFile, stat, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { limrun } from '../../src/provider.ts';
 import type { DeviceRequest } from '@e2e-dev/mobile';
@@ -9,6 +11,7 @@ const mocks = vi.hoisted(() => {
     heartbeat: vi.fn(), stopHeartbeat: vi.fn(async () => {}), ios: endpoints(), android: endpoints(), options: vi.fn(), start: vi.fn(), stop: vi.fn(async () => {}), version: vi.fn(), androidTools: vi.fn(async () => {}),
     connectIos: vi.fn(), connectAndroid: vi.fn(), setCameraVideo: vi.fn(async () => {}), clearCameraVideo: vi.fn(async () => {}), disconnect: vi.fn(),
     pushFile: vi.fn(async (_source: string, destination: string) => destination), playOnMicrophone: vi.fn(async () => {}), stopMicrophonePlayback: vi.fn(async () => {}),
+    setStoreKitConfig: vi.fn(async () => {}), clearStoreKitConfig: vi.fn(async () => {}),
     NotFoundError: class NotFoundError extends Error {},
   };
 });
@@ -39,7 +42,7 @@ beforeEach(() => {
   mocks.android.get.mockResolvedValue(instance('android-test'));
   mocks.start.mockResolvedValue({ client: { stateDir: '/state', leaseId: 'driver-lease' }, deviceId: 'limrun:ios:driver-lease' });
   const control = { pushFile: mocks.pushFile, playOnMicrophone: mocks.playOnMicrophone, setCameraVideo: mocks.setCameraVideo, clearCameraVideo: mocks.clearCameraVideo, disconnect: mocks.disconnect };
-  mocks.connectIos.mockResolvedValue({ ...control, stopMicrophonePlayback: mocks.stopMicrophonePlayback });
+  mocks.connectIos.mockResolvedValue({ ...control, setStoreKitConfig: mocks.setStoreKitConfig, clearStoreKitConfig: mocks.clearStoreKitConfig, stopMicrophonePlayback: mocks.stopMicrophonePlayback });
   mocks.connectAndroid.mockResolvedValue(control);
 });
 
@@ -184,6 +187,32 @@ it('does not start playback after cancellation during upload, and disconnects', 
   expect(mocks.disconnect).toHaveBeenCalledTimes(1);
 });
 
+it('uploads catalog bytes using the worker lease and disconnects after set, clear, and failure', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'e2e-storekit-'));
+  const source = path.join(root, 'Catalog.storekit');
+  const context = { platform: 'ios' as const, env: request().env, signal: new AbortController().signal };
+  const storekit = limrun().storekit!;
+  try {
+    await writeFile(source, '{"products":[]}');
+    await storekit.setConfig({ id: 'ios-worker' }, { bundleId: 'com.example.app', source }, context);
+    expect(mocks.ios.get).toHaveBeenCalledWith('ios-worker', { signal: context.signal });
+    expect(mocks.setStoreKitConfig).toHaveBeenCalledWith('com.example.app', Buffer.from('{"products":[]}'));
+    await storekit.clearConfig({ id: 'ios-worker' }, 'com.example.app', context);
+    expect(mocks.clearStoreKitConfig).toHaveBeenCalledWith('com.example.app');
+    mocks.setStoreKitConfig.mockRejectedValueOnce(new Error('upload interrupted'));
+    await expect(storekit.setConfig({ id: 'ios-worker' }, { bundleId: 'com.example.app', source }, context)).rejects.toThrow(/upload interrupted/);
+    expect(mocks.disconnect).toHaveBeenCalledTimes(3);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it('rejects StoreKit on Android before connecting or reading a catalog', async () => {
+  const storekit = limrun().storekit!;
+  const context = { platform: 'android' as const, env: {}, signal: new AbortController().signal };
+  await expect(storekit.setConfig({ id: 'android-worker' }, { bundleId: 'com.example.app', source: '/missing' }, context)).rejects.toMatchObject({ code: 'UNSUPPORTED_CAPABILITY' });
+  await expect(storekit.clearConfig({ id: 'android-worker' }, 'com.example.app', context)).rejects.toMatchObject({ code: 'UNSUPPORTED_CAPABILITY' });
+  expect(mocks.connectAndroid).not.toHaveBeenCalled();
+  expect(mocks.android.get).not.toHaveBeenCalled();
+});
 
 it.each([undefined, 'https://run.example'])('selects the API endpoint from the run environment: %s', async (baseURL) => {
   const provider = limrun();

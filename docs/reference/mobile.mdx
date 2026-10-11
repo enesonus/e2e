@@ -237,6 +237,11 @@ export interface Device {
     mockAudio(audio: { source: string; loop?: boolean }): Promise<void>;
     clear(): Promise<void>;
   };
+  /** iOS StoreKit catalogs. Catalog cleanup preserves purchase history. */
+  readonly storekit: {
+    setConfig(config: { bundleId: string; source: string }): Promise<void>;
+    clearConfig(bundleId: string): Promise<void>;
+  };
   /**
    * A locator from an agent-device selector (`'id=SW_VERSION_SPECIFIER'`,
    * `'role=StaticText label="26.2"'`), for nodes the closed `screen` query
@@ -541,6 +546,28 @@ platform, run environment, and operation's abort signal inside the worker.
 an abandoned upload before clearing. Providers must settle promises only
 when the device operation completes, and make repeated clearing safe.
 
+### StoreKit fixtures
+
+`device.storekit.setConfig({ bundleId, source })` applies a local `.storekit`
+catalog to one iOS app. The source path resolves against the project root.
+Call it before `app.open()`, or restart an already running app afterwards.
+The engine validates the bundle ID and JSON object before dispatching.
+Android and providers without this capability report `UNSUPPORTED_CAPABILITY`.
+
+`device.storekit.clearConfig(bundleId)` removes that app's local catalog.
+Every catalog set by the attempt is also cleared at attempt end, including
+failed attempts and retries. This preserves transactions and entitlements;
+a fresh purchase history needs a fresh simulator. Clearing restores normal
+sandbox behavior, while applying an empty catalog produces no local products.
+
+A `DeviceProvider` can implement `storekit.setConfig(lease, config, context)`
+and `storekit.clearConfig(lease, bundleId, context)`. Both receive the
+travelled lease, platform, run environment, and abort signal in the worker.
+`config.source` is absolute. Operations are serialized and cleanup waits
+for an abandoned upload. Providers must settle promises when device-side
+work completes and make repeated clearing safe. Cleanup attempts all apps
+even if clearing one fails; failed clears remain pending for another attempt.
+
 ## Agent tools
 
 `mobileTools(...engines)` adds device tools to an agent's `tools`. It takes at
@@ -577,8 +604,8 @@ engine cannot prove a fallback screenshot safe when those bounds are missing.
 `PermissionState`, `DeviceClientConfig`, `DeviceConnection`, `DeviceDaemon`,
 `DeviceProvider`, `DeviceLease`, `DeviceReleaseContext`, `DeviceRequest`,
 `Camera`, `CameraFeed`, `DeviceCameraProvider`, `Microphone`,
-`MicrophoneAudio`, `DeviceMicrophoneProvider`,
-`DeviceControlContext`,
+`MicrophoneAudio`, `DeviceMicrophoneProvider`, `StoreKit`, `StoreKitConfig`,
+`DeviceStoreKitProvider`, `DeviceControlContext`,
 `Device`, `DeviceOrientation`, `BiometricSensor`, `ForegroundApp`,
 `InstallAppOptions`, `InstalledApp`, and `OpenAppOptions` are exported from
 `@e2e-dev/mobile`. The runtime exports are `mobile` and `test`, typed with the
