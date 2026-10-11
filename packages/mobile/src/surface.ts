@@ -60,6 +60,7 @@ import { DEVICE_PERMISSIONS, type AgentDeviceClient, type ClientFactory, type De
 import { maskPng } from './png.ts';
 import { deviceLabel, pinnedApp, type SlotBinding } from './bindings.ts';
 import { assertAppId } from './links.ts';
+import { LeaseCamera } from './camera.ts';
 import { DevicePool, deviceSelection, type DeviceSelection } from './pool.ts';
 import { recordLease, travelledLease, type DeviceLease, type RecordingDeviceProvider } from './provider.ts';
 import {
@@ -350,6 +351,7 @@ function tellHarness(call: () => void): void {
 }
 
 export class AgentDeviceSurface {
+  readonly camera = new LeaseCamera();
   private client: AgentDeviceClient | undefined;
   private attempt: Attempt | undefined;
   /** The attempt's `EngineAttemptContext.screen`, which locate captures feed; undefined between attempts. */
@@ -504,6 +506,7 @@ export class AgentDeviceSurface {
     this.client ??= this.createClient(session, binding);
     const provider = this.pool.recorder;
     const lease = travelledLease(binding);
+    this.camera.init(this.pool.provider?.camera, lease, this.options.platform, info.projectRoot, info.env, info.runId, info.targetName);
     this.leaseRecorder =
       provider === undefined || lease === undefined
         ? undefined
@@ -534,11 +537,13 @@ export class AgentDeviceSurface {
     return open ? app : undefined;
   }
 
+
   async startAttempt(context: EngineAttemptContext): Promise<void> {
     if (this.attempt !== undefined) {
       throw invalidState('an attempt is already running on this agent-device engine');
     }
     await this.settleInflight(context.signal);
+    await this.camera.reset(context.signal);
     // Nothing is launched here: the app is where the last test, or the
     // worker's `prepare`, left it, and a test that wants it fresh calls
     // `app.open()`, which is `restart` below. The bindings are forgotten, the
@@ -569,6 +574,7 @@ export class AgentDeviceSurface {
       await this.settleInflight(context.signal).catch(() => undefined);
       await this.stopScreenRecording(context.signal).catch(() => undefined);
     }
+    await this.camera.reset(context.signal);
   }
 
   // --- video ---
@@ -688,8 +694,11 @@ export class AgentDeviceSurface {
     this.sessionApp = undefined;
     this.installedApp = undefined;
     this.knownViewport = undefined;
-    if (client === undefined) return;
-    await withinCleanupBudget(client.sessions.close().catch(() => undefined), context);
+    try {
+      await withinCleanupBudget(this.camera.reset(context.signal), context);
+    } finally {
+      if (client !== undefined) await withinCleanupBudget(client.sessions.close().catch(() => undefined), context);
+    }
   }
 
   /**

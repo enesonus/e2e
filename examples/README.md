@@ -24,6 +24,8 @@ repository. See its README for run commands. Agent tests need
 and Android devices. It reuses the SwiftUI and Compose apps above to check
 forms, validation, updated results, and restart. No AI key is needed.
 
+[with-limrun-camera](with-limrun-camera) demonstrates QR scanning with known camera input on iOS and Android.
+
 ## For contributors
 
 Run the suite locally after changes. Update the README's "Last checked"

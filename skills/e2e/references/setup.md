@@ -338,6 +338,11 @@ export default {
   With agent-device 0.21.22, iOS keyboard actions such as `locator.press('Enter')`
   return `UNSUPPORTED_CAPABILITY`; tap an app button when available.
   See `examples/with-limrun` for the same form and restart tests on both platforms.
+  Camera tests call `device.camera.mockFeed({ type: 'video', source: 'fixtures/qr.mp4' })`
+  in fixtures or between agent steps. Grant camera permission before opening the app.
+  Android camera injection requires Android 15 or newer, the provider's default.
+  Media clears after every attempt; `device.camera.clear()` clears early.
+  Injection cannot restore camera capture compiled out for simulators.
 - Only a control that appeared or moved with the previous action waits out
   `transition` (default 500 ms); agent actions settle `settle` ms (default
   150) before the next observation, `settle: false` skips it.

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => {
   const endpoints = () => ({ create: vi.fn(), get: vi.fn(), delete: vi.fn<(id: string, options: { signal: AbortSignal }) => Promise<void>>(async () => {}) });
   return {
     heartbeat: vi.fn(), stopHeartbeat: vi.fn(async () => {}), ios: endpoints(), android: endpoints(), options: vi.fn(), start: vi.fn(), stop: vi.fn(async () => {}), version: vi.fn(), androidTools: vi.fn(async () => {}),
+    connectIos: vi.fn(), connectAndroid: vi.fn(), setCameraVideo: vi.fn(async () => {}), clearCameraVideo: vi.fn(async () => {}), disconnect: vi.fn(),
     NotFoundError: class NotFoundError extends Error {},
   };
 });
@@ -16,6 +17,8 @@ vi.mock('@limrun/api', () => ({ default: class {
   constructor(options: unknown) { mocks.options(options); }
 } }));
 vi.mock('../../src/heartbeat.ts', () => ({ startHeartbeat: mocks.heartbeat }));
+vi.mock('@limrun/api/ios-client', () => ({ createInstanceClient: mocks.connectIos }));
+vi.mock('@limrun/api/instance-client', () => ({ createInstanceClient: mocks.connectAndroid }));
 vi.mock('../../src/daemon.ts', () => ({ assertAndroidTools: mocks.androidTools, assertDriverVersion: mocks.version, startDriver: mocks.start, stopDriver: mocks.stop }));
 
 const instance = (id = 'ios-test') => ({ metadata: { id }, status: { state: 'ready', apiUrl: 'https://device.example', token: 'instance-secret', adbWebSocketUrl: 'wss://adb.example' } });
@@ -33,22 +36,15 @@ beforeEach(() => {
   mocks.android.create.mockResolvedValue(instance('android-test'));
   mocks.android.get.mockResolvedValue(instance('android-test'));
   mocks.start.mockResolvedValue({ client: { stateDir: '/state', leaseId: 'driver-lease' }, deviceId: 'limrun:ios:driver-lease' });
-
+  const control = { setCameraVideo: mocks.setCameraVideo, clearCameraVideo: mocks.clearCameraVideo, disconnect: mocks.disconnect };
+  mocks.connectIos.mockResolvedValue({ ...control });
+  mocks.connectAndroid.mockResolvedValue(control);
 });
 
 it('requires the run key and matching driver before creating a device', async () => {
   await expect(limrun().acquire(request({ env: {} }))).rejects.toThrow(/LIMRUN_API_KEY/);
   expect(mocks.ios.create).not.toHaveBeenCalled();
   expect(mocks.version).toHaveBeenCalledWith('0.21.22');
-});
-
-it.each([undefined, 'https://run.example'])('selects the API endpoint from the run environment: %s', async (baseURL) => {
-  const provider = limrun();
-  const lease = await provider.acquire(request({ env: { LIMRUN_API_KEY: 'run-key', LIMRUN_BASE_URL: baseURL } }));
-  expect(mocks.options).toHaveBeenCalledWith(expect.objectContaining({
-    apiKey: 'run-key', baseURL: baseURL ?? 'https://api.limrun.com',
-  }));
-  await provider.release(lease, cleanup());
 });
 
 it('isolates concurrent slots and targets, uses run credentials, and never mutates process.env', async () => {
@@ -112,6 +108,24 @@ it('still deletes the device if stopping the daemon fails, and reports the clean
   await provider.release(lease, cleanup());
 });
 
+it.each(['ios', 'android'] as const)('controls the %s camera from a new worker provider with no runner state', async (platform) => {
+  const provider = limrun();
+  const context = { platform, env: { LIMRUN_API_KEY: 'worker-key' }, signal: new AbortController().signal };
+  const lease = { id: `${platform}-test`, client: {} };
+  await provider.camera!.mockFeed(lease, { type: 'video', source: '/project/qr.mp4', loop: false }, context);
+  await provider.camera!.clear(lease, context);
+  expect(mocks.setCameraVideo).toHaveBeenCalledWith('/project/qr.mp4', { loop: false });
+  expect(mocks.clearCameraVideo).toHaveBeenCalledTimes(1);
+  expect(mocks.disconnect).toHaveBeenCalledTimes(2);
+  expect(mocks.options).toHaveBeenCalledWith(expect.objectContaining({ apiKey: 'worker-key' }));
+});
+
+it('disconnects the camera client even when injection fails', async () => {
+  mocks.setCameraVideo.mockRejectedValueOnce(new Error('unsupported camera'));
+  await expect(limrun().camera!.mockFeed({ id: 'ios-test' }, { type: 'video', source: '/qr.mp4' }, { platform: 'ios', env: request().env, signal: new AbortController().signal })).rejects.toThrow(/unsupported camera/);
+  expect(mocks.disconnect).toHaveBeenCalledTimes(1);
+});
+
 it('treats a device that expired before release as already cleaned up', async () => {
   const provider = limrun();
   const lease = await provider.acquire(request());
@@ -125,4 +139,14 @@ it('refuses missing Android tools before allocating anything', async () => {
   mocks.androidTools.mockRejectedValueOnce(new Error('adb missing'));
   await expect(limrun().acquire(request({ platform: 'android' }))).rejects.toThrow(/adb missing/);
   expect(mocks.android.create).not.toHaveBeenCalled();
+});
+
+
+it.each([undefined, 'https://run.example'])('selects the API endpoint from the run environment: %s', async (baseURL) => {
+  const provider = limrun();
+  const lease = await provider.acquire(request({ env: { LIMRUN_API_KEY: 'run-key', LIMRUN_BASE_URL: baseURL } }));
+  expect(mocks.options).toHaveBeenCalledWith(expect.objectContaining({
+    apiKey: 'run-key', baseURL: baseURL ?? 'https://api.limrun.com',
+  }));
+  await provider.release(lease, cleanup());
 });

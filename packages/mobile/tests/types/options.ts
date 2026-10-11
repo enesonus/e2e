@@ -1,5 +1,5 @@
 /** Compile-time assertions for the device engine's options and the hosted device provider seam. */
-import type { DeviceLease, DeviceProvider, DeviceRequest, MobileOptions } from '../../src/index.ts';
+import type { CameraFeed, DeviceCameraProvider, DeviceLease, DeviceProvider, DeviceRequest, MobileOptions } from '../../src/index.ts';
 
 ({ platform: 'ios', device: 'iPhone 16' }) satisfies MobileOptions;
 ({ platform: 'android', device: ['Pixel_8', 'Pixel_9'] }) satisfies MobileOptions;
@@ -35,3 +35,11 @@ const farm = {
 ({ daemon: { baseUrl: 'http://10.0.0.7:4700' } }) satisfies DeviceLease;
 // @ts-expect-error a lease names its daemon by URL.
 ({ id: 'lease-1', daemon: { baseUrl: 4700 } }) satisfies DeviceLease;
+
+({ type: 'video', source: 'fixtures/qr.mp4', loop: false }) satisfies CameraFeed;
+// @ts-expect-error camera images must first be encoded as video.
+({ type: 'image', source: 'fixtures/qr.png' }) satisfies CameraFeed;
+// @ts-expect-error the app selects the camera lens.
+({ type: 'video', source: 'qr.mp4', facing: 'front' }) satisfies CameraFeed;
+// @ts-expect-error a camera provider must be able to clear the source it sets.
+({ mockFeed: async () => undefined }) satisfies DeviceCameraProvider;

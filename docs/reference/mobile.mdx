@@ -227,6 +227,11 @@ between steps rather than inside one.
 ```ts
 /** Deterministic device management exposed to tests as `device`. */
 export interface Device {
+  /** Video input from a camera-capable device provider. Cleared after every attempt. */
+  readonly camera: {
+    mockFeed(feed: { type: 'video'; source: string; loop?: boolean }): Promise<void>;
+    clear(): Promise<void>;
+  };
   /**
    * A locator from an agent-device selector (`'id=SW_VERSION_SPECIFIER'`,
    * `'role=StaticText label="26.2"'`), for nodes the closed `screen` query
@@ -492,6 +497,25 @@ Selector terms are agent-device's: `id`, `role`, `text`, `label`, `value`,
 `selected`, `focused`, `enabled`, `hittable`. `role` accepts the platform
 type (`StaticText`) or the contract role (`text`).
 
+### Camera fixtures
+
+`device.camera.mockFeed({ type: 'video', source, loop? })` plays a local
+video through the app's camera. `source` resolves against the project root;
+`loop` defaults to `true`. `clear()` restores the provider's default input.
+The engine also clears after every attempt and before retrying an attempt
+whose cleanup failed. Missing files and invalid feed arguments fail before
+upload. A provider without camera control reports `UNSUPPORTED_CAPABILITY`.
+
+A `DeviceProvider` can implement `camera.mockFeed(lease, feed, context)` and
+`camera.clear(lease, context)`. Both run in the worker with the travelled
+lease, the platform, the run environment, and the operation's abort signal.
+`feed.source` is absolute. Calls are serialized; cleanup waits for an
+abandoned upload before clearing it. The provider must settle each promise
+only when its device-side operation has completed.
+
+See [Test mobile apps on Limrun](/integrations/limrun) for a provider,
+permission setup, and camera library compatibility.
+
 ## Agent tools
 
 `mobileTools(...engines)` adds device tools to an agent's `tools`. It takes at
@@ -527,6 +551,8 @@ engine cannot prove a fallback screenshot safe when those bounds are missing.
 `MobileOptions`, `MobilePlatform`, `DevicePermission`, `LaunchPermissions`,
 `PermissionState`, `DeviceClientConfig`, `DeviceConnection`, `DeviceDaemon`,
 `DeviceProvider`, `DeviceLease`, `DeviceReleaseContext`, `DeviceRequest`,
+`Camera`, `CameraFeed`, `DeviceCameraProvider`,
+`DeviceControlContext`,
 `Device`, `DeviceOrientation`, `BiometricSensor`, `ForegroundApp`,
 `InstallAppOptions`, `InstalledApp`, and `OpenAppOptions` are exported from
 `@e2e-dev/mobile`. The runtime exports are `mobile` and `test`, typed with the

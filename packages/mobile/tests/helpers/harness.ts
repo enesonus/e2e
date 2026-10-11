@@ -28,11 +28,12 @@ export async function boot(
   targetName = 'ios-simulator',
   workerSlot = 0,
   env: Readonly<Record<string, string | undefined>> = {},
+  projectRoot = PROJECT_ROOT,
 ): Promise<void> {
   await engine.init!({
     runId: 'run-1',
     targetName,
-    projectRoot: PROJECT_ROOT,
+    projectRoot,
     app,
     env,
     headed: false,

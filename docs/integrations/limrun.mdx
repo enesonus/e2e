@@ -145,6 +145,65 @@ Tap the app's submit button when the flow provides one.
 Test the locators and libraries your app uses on its target runtime.
 The greeting example demonstrates native form flows; it does not establish compatibility with every mobile framework or control.
 
+## Supply camera input
+
+Grant `camera: 'grant'` in `app.permissions` before opening the app.
+Use the [camera example](https://github.com/tester-army/e2e/tree/main/examples/with-limrun-camera)
+for a native scanner, video fixtures, and its target config.
+
+Keep an MP4 or MOV in your project's fixtures directory. For a static QR
+code or document, encode the image as a short video first. Image sources
+and a `facing` option are not part of this API; the app chooses its camera.
+
+```ts title="tests/scanner.e2e.ts"
+import { expect } from 'e2e';
+import { test } from '@e2e-dev/mobile';
+
+const scanner = test.extend<{ cameraReady: void }>({
+  cameraReady: async ({ device }, use) => {
+    await device.camera.mockFeed({
+      type: 'video',
+      source: 'fixtures/valid-qr.mp4',
+    });
+    await use();
+  },
+});
+
+scanner('accepts a known QR code', async ({ app, screen }) => {
+  await app.open();
+  await expect(screen.getByText('Code accepted')).toBeVisible();
+});
+```
+
+The video loops by default. Set `loop: false` to play it once and hold the
+last frame. `device.camera.clear()` restores the device's default input.
+With no live input attached, that can mean no camera frames, rather than
+frames showing a black or white image. Supply a blank video to test the
+app's response to empty frames.
+
+The engine clears injected media after every attempt, including failed
+attempts and retries. It waits for an upload that outlived its action budget
+before clearing, so that upload cannot replace the next test's input.
+A provider without camera injection fails with `UNSUPPORTED_CAPABILITY`.
+
+Call camera methods in fixtures or between agent steps. Keep them out of
+custom agent tools so cached agent steps replay against the same input.
+Camera injection changes the device's input; it does not grant camera
+permission or change application code that disables simulator capture.
+
+Android video injection requires Android 15 or newer. The provider requests
+Android 15 by default. Use videos without an audio track for camera-only
+tests; Android camera injection also feeds the video's audio into the
+microphone. When combining controls, inject a silent camera video first,
+then set the microphone audio.
+
+Some camera libraries disable simulator capture in their own build. For
+example, `expo-camera` 17.0.10 in Expo SDK 54 compiles out the iOS simulator
+capture path. Such a build needs an app-side change or a library version
+that supports simulator capture. Injecting a feed cannot restore code
+that was left out of the binary. Validate the exact library and OS used by
+your app before adopting a camera suite.
+
 ## Next
 
 <CardGroup cols={2}>

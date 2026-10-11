@@ -6,6 +6,7 @@
  */
 
 import type { EngineFixtureContext, Locator } from 'e2e/engine';
+import type { CameraFeed } from './provider.ts';
 import { linkLabel, linkTarget } from './links.ts';
 import type { DevicePermission, PermissionState } from './options.ts';
 import type { AgentDeviceSurface, FoldPose, InstallAppOptions, InstalledApp, OpenAppOptions } from './surface.ts';
@@ -20,8 +21,17 @@ export interface ForegroundApp {
   readonly bundleId?: string;
 }
 
+/** Camera setup is cleared automatically after every attempt, including retries. */
+export interface Camera {
+  /** Play a local video through the app's camera. Unsupported providers fail explicitly. */
+  mockFeed(feed: CameraFeed): Promise<void>;
+  /** Restore the provider's default camera input. Safe to call repeatedly. */
+  clear(): Promise<void>;
+}
+
 /** Deterministic device management exposed to tests as `device`. */
 export interface Device {
+  readonly camera: Camera;
   /**
    * A locator from an agent-device selector (`'id=SW_VERSION_SPECIFIER'`,
    * `'role=StaticText label="26.2"'`), for nodes the closed `screen` query
@@ -125,7 +135,15 @@ export interface Device {
 
 /** Builds the device fixture for one attempt. */
 export function createDeviceFixture(surface: AgentDeviceSurface, context: EngineFixtureContext): Device {
+  const camera = context.fixture<Camera>('device.camera', {
+    mockFeed: (feed) => surface.camera.mockFeed(feed, context.signal),
+    clear: () => surface.camera.clear(context.signal),
+  }, {
+    mockFeed: { kind: 'resource', label: (feed) => feed?.source ?? '' },
+    clear: { kind: 'resource' },
+  });
   const device: Device = {
+    camera,
     locator: (selector) => context.locator({ kind: 'selector', selector }),
     async setNetwork(state) {
       await surface.command(
