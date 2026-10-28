@@ -87,6 +87,10 @@
       {
         "id": "cloud-browsers",
         "label": "Cloud browsers"
+      },
+      {
+        "id": "cloud-devices",
+        "label": "Cloud devices"
       }
     ],
     "platform": [
