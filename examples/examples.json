@@ -618,7 +618,7 @@
       "shortTitle": "Limrun",
       "description": "The same greeting-form tests on hosted iOS and Android devices, with both apps built remotely on Limrun.",
       "icon": "limrun.svg",
-      "source": "community",
+      "source": "partner",
       "repository": "https://github.com/limrun-inc/testerarmy-e2e-limrun",
       "author": {
         "name": "Limrun",
