@@ -622,7 +622,8 @@
       "repository": "https://github.com/limrun-inc/testerarmy-e2e-limrun",
       "author": {
         "name": "Limrun",
-        "github": "limrun-inc"
+        "github": "limrun-inc",
+        "website": "https://limrun.com"
       },
       "license": "Apache-2.0",
       "licenseUrl": "https://github.com/limrun-inc/testerarmy-e2e-limrun/blob/main/LICENSE",
