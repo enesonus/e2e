@@ -29,3 +29,4 @@ list its source below.
 - `smolmachines.svg`: https://smolmachines.com/favicon.svg
 - `kernel.svg`: the green KERNEL wordmark from https://www.kernel.sh/brand-assets,
   https://www.kernel.sh/rebrand/logos/logo-kernel-green.svg
+- `limrun.svg`: a copy of `docs/images/integrations/limrun.svg`
