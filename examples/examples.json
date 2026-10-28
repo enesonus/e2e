@@ -633,7 +633,7 @@
           "jetpack-compose"
         ],
         "useCase": [
-          "starter"
+          "cloud-devices"
         ],
         "platform": [
           "ios",
